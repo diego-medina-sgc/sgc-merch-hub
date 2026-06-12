@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Merch Hub — Guía rápida</title>
+<link rel="icon" type="image/png" href="favicon.png"/>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Asap:wght@300;400;500;600;700;800&family=Asap+Condensed:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+:root{
+  --ink:#1A1F35;--red:#DC1E33;--navy:#213463;--teal:#109AA9;
+  --violet:#6B6EB3;--green:#15803d;--amber:#b45309;
+  --bg:#EEF1F8;--surface:#fff;--gray:#5A6070;--line:#D8DDE8;
+  --green-lt:#dcfce7;--amber-lt:#fef3c7;--red-lt:#FEE8EB;--navy-lt:#E8EDF8;--teal-lt:#d8f3f5;
+  --shadow:0 1px 3px rgba(14,22,40,.05),0 8px 24px rgba(14,22,40,.07);
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'Asap',sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;}
+
+.hero{background:linear-gradient(135deg,var(--ink) 0%,#2A3150 60%,var(--navy) 100%);color:#fff;padding:56px 24px 110px;text-align:center;position:relative;border-top:5px solid var(--red);}
+.hero img{height:64px;margin-bottom:22px;}
+.hero h1{font-size:clamp(2rem,5vw,3rem);font-weight:800;letter-spacing:-.04em;}
+.hero h1 span{color:#FF6B7E;}
+.hero p{font-size:1.02rem;color:rgba(255,255,255,.78);max-width:560px;margin:10px auto 26px;}
+.hero .cta{display:inline-flex;align-items:center;gap:9px;background:var(--red);color:#fff;text-decoration:none;font-weight:700;padding:13px 28px;border-radius:30px;font-size:.95rem;box-shadow:0 8px 24px rgba(220,30,51,.4);transition:transform .15s,box-shadow .15s;}
+.hero .cta:hover{transform:translateY(-2px);box-shadow:0 12px 32px rgba(220,30,51,.5);}
+.hero .wave{position:absolute;bottom:-1px;left:0;right:0;}
+
+.wrap{max-width:880px;margin:0 auto;padding:0 20px 60px;}
+.lift{margin-top:-64px;position:relative;z-index:2;}
+
+.sec-t{display:flex;align-items:center;gap:12px;margin:46px 0 18px;}
+.sec-t .n{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:800;color:#fff;font-size:1rem;flex-shrink:0;}
+.sec-t h2{font-size:1.35rem;font-weight:800;letter-spacing:-.02em;}
+.sec-t small{display:block;font-family:'Asap Condensed',sans-serif;font-size:.7rem;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--gray);}
+
+.rules{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.rule{background:var(--surface);border-radius:16px;padding:24px 22px;box-shadow:var(--shadow);border-top:4px solid var(--red);text-align:center;}
+.rule:nth-child(2){border-top-color:var(--teal);}
+.rule:nth-child(3){border-top-color:var(--navy);}
+.rule .emo{font-size:2rem;display:block;margin-bottom:10px;}
+.rule h3{font-size:.98rem;font-weight:700;margin-bottom:6px;}
+.rule p{font-size:.82rem;color:var(--gray);line-height:1.55;}
+
+.task{background:var(--surface);border-radius:16px;box-shadow:var(--shadow);padding:26px 28px;margin-bottom:16px;border-left:5px solid var(--c,var(--teal));}
+.task-hd{display:flex;align-items:center;gap:12px;margin-bottom:6px;}
+.task-hd .emo{font-size:1.5rem;}
+.task-hd h3{font-size:1.08rem;font-weight:800;letter-spacing:-.01em;}
+.task .when{font-family:'Asap Condensed',sans-serif;font-size:.74rem;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--c,var(--teal));margin-bottom:14px;}
+.steps{list-style:none;counter-reset:s;}
+.steps li{counter-increment:s;position:relative;padding:0 0 12px 42px;font-size:.9rem;}
+.steps li::before{content:counter(s);position:absolute;left:0;top:-1px;width:26px;height:26px;border-radius:50%;background:var(--c,var(--teal));color:#fff;font-weight:700;font-size:.78rem;display:flex;align-items:center;justify-content:center;}
+.steps li:not(:last-child)::after{content:'';position:absolute;left:12.5px;top:27px;bottom:-2px;width:1.5px;background:var(--line);}
+.steps b{font-weight:700;}
+.tip{display:flex;gap:10px;background:var(--amber-lt);border-radius:10px;padding:11px 15px;font-size:.82rem;margin-top:8px;color:#7a4a08;}
+.tip.good{background:var(--green-lt);color:#14532d;}
+.tag{display:inline-block;padding:2px 9px;border-radius:4px;font-size:.72rem;font-weight:700;font-family:'Asap Condensed',sans-serif;vertical-align:1px;}
+.tag.ok{background:var(--green-lt);color:var(--green);}
+.tag.warn{background:var(--amber-lt);color:var(--amber);}
+.tag.bad{background:#fee2e2;color:#b91c1c;}
+.btnref{display:inline-block;background:var(--bg);border:1.5px solid var(--line);border-radius:6px;padding:1px 9px;font-size:.78rem;font-weight:600;font-family:'Asap Condensed',sans-serif;color:var(--ink);white-space:nowrap;}
+
+.sema{background:var(--surface);border-radius:16px;box-shadow:var(--shadow);padding:26px 28px;}
+.sema-row{display:flex;align-items:flex-start;gap:14px;padding:10px 0;border-bottom:1px solid var(--line);font-size:.88rem;}
+.sema-row:last-child{border-bottom:none;}
+.sema-row .tag{margin-top:2px;min-width:74px;text-align:center;}
+
+.faq{background:var(--surface);border-radius:16px;box-shadow:var(--shadow);padding:10px 28px;}
+.faq details{border-bottom:1px solid var(--line);padding:16px 0;}
+.faq details:last-child{border-bottom:none;}
+.faq summary{font-weight:700;font-size:.94rem;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;gap:10px;}
+.faq summary::after{content:'+';font-size:1.3rem;color:var(--teal);font-weight:400;transition:transform .2s;}
+.faq details[open] summary::after{transform:rotate(45deg);}
+.faq p{font-size:.86rem;color:var(--gray);margin-top:8px;}
+
+footer{text-align:center;padding:26px 20px 40px;font-family:'Asap Condensed',sans-serif;font-size:.72rem;color:var(--gray);letter-spacing:.05em;}
+footer a{color:var(--teal);font-weight:700;text-decoration:none;}
+
+@media(max-width:680px){
+  .rules{grid-template-columns:1fr;}
+  .task,.sema,.faq{padding:20px 18px;}
+  .hero{padding:42px 18px 100px;}
+}
+@media print{
+  .hero .cta{display:none;}
+  .task,.rule,.sema,.faq{box-shadow:none;border:1px solid var(--line);}
+  .faq details{display:block;}
+}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <img src="logo-h-white.png" alt="St George's College"/>
+  <h1>Merch Hub <span>&hearts;</span></h1>
+  <p>La merch del colegio, bajo control. Chau fórmulas rotas: ahora todo se registra en la app y el stock se calcula solo.</p>
+  <a class="cta" href="https://diego-medina-sgc.github.io/sgc-merch-hub/" target="_blank">Abrir Merch Hub &rarr;</a>
+  <svg class="wave" viewBox="0 0 1440 60" preserveAspectRatio="none" height="60" width="100%"><path d="M0,40 C360,75 1080,0 1440,35 L1440,60 L0,60 Z" fill="#EEF1F8"/></svg>
+</div>
+
+<div class="wrap">
+
+  <!-- REGLAS DE ORO -->
+  <div class="rules lift">
+    <div class="rule">
+      <span class="emo">🙅</span>
+      <h3>El stock no se toca a mano</h3>
+      <p>Nada de editar números. Todo pasa por la app: pedidos, importaciones, movimientos. El stock se calcula solo.</p>
+    </div>
+    <div class="rule">
+      <span class="emo">🧾</span>
+      <h3>Todo movimiento se registra</h3>
+      <p>¿Salió merch del armario? Se registra. ¿Llegó una caja? Se registra. Si no está en la app, no existe.</p>
+    </div>
+    <div class="rule">
+      <span class="emo">🔍</span>
+      <h3>¿Número raro? No lo "arregles"</h3>
+      <p>Si algo no cierra, se cuenta físicamente y se corrige con <b>Ajustar</b>. Queda registrado quién, cuándo y por qué.</p>
+    </div>
+  </div>
+
+  <!-- TAREAS -->
+  <div class="sec-t"><div class="n" style="background:var(--red)">1</div><div><h2>Sale merch de Marketing</h2><small>regalos, eventos, ventas internas</small></div></div>
+  <div class="task" style="--c:var(--red)">
+    <div class="task-hd"><span class="emo">🎁</span><h3>Registrar un pedido</h3></div>
+    <div class="when">Cada vez que entregás merch a alguien — aunque sea UN bolígrafo</div>
+    <ol class="steps">
+      <li>Entrá a la pestaña <span class="btnref">Pedidos</span>.</li>
+      <li>Completá el formulario: <b>quién lo pide, sede, motivo, producto y cantidad</b>. Al elegir el producto ves cuánto stock hay.</li>
+      <li>Elegí la lista de precio: <b>Regalo</b> ($0), <b>Interno</b> o <b>Público</b>. El valor se calcula solo.</li>
+      <li>Tocá <span class="btnref">Registrar pedido 🚀</span>. Listo: el stock ya se descontó de la sede.</li>
+    </ol>
+    <div class="tip">💡 Aunque sea un regalo a $0, <b>siempre se registra</b> — así medimos cuánto invierte el colegio en marca.</div>
+  </div>
+
+  <div class="sec-t"><div class="n" style="background:var(--teal)">2</div><div><h2>Llegan ventas del shop</h2><small>una vez por semana o cuando mande el export</small></div></div>
+  <div class="task" style="--c:var(--teal)">
+    <div class="task-hd"><span class="emo">📥</span><h3>Importar ventas</h3></div>
+    <div class="when">Cuando el shop de Quilmes o North manda su export de ventas</div>
+    <ol class="steps">
+      <li>Abrí el export en Excel/Sheets y <b>copiá las filas</b> de ventas (Ctrl+C, con encabezados y totales incluidos no pasa nada — se filtran solos).</li>
+      <li>En la pestaña <span class="btnref">Importar ventas</span>, elegí el <b>shop de origen</b> (Quilmes o North).</li>
+      <li>Pegá todo en el cuadro y tocá <span class="btnref">Analizar 🔍</span>.</li>
+      <li>Mirá el resumen: cuántas ventas detectó y si hay <b>códigos nuevos</b>. Si hay, asignales el producto correcto (es una sola vez — la app se lo acuerda para siempre).</li>
+      <li>Tocá <span class="btnref">Confirmar importación 🚀</span>.</li>
+    </ol>
+    <div class="tip good">✅ ¿Pegaste dos veces lo mismo sin querer? Tranqui: las ventas duplicadas se descartan solas.</div>
+  </div>
+
+  <div class="sec-t"><div class="n" style="background:var(--navy)">3</div><div><h2>Se mueve el stock</h2><small>transferencias, conteos y reposiciones</small></div></div>
+  <div class="task" style="--c:var(--navy)">
+    <div class="task-hd"><span class="emo">🔀</span><h3>Mover merch entre ubicaciones</h3></div>
+    <div class="when">Cuando llevás cajas de una sede a otra, o del depósito al shop</div>
+    <ol class="steps">
+      <li>En <span class="btnref">Stock</span>, buscá el producto y tocá <span class="btnref">⇄ mover</span>.</li>
+      <li>Elegí desde dónde, hacia dónde y cuánto. Guardá. Ya está.</li>
+    </ol>
+  </div>
+  <div class="task" style="--c:var(--navy)">
+    <div class="task-hd"><span class="emo">🧮</span><h3>Ajustar después de un conteo</h3></div>
+    <div class="when">Cuando contaste físicamente y el número real no coincide con la app</div>
+    <ol class="steps">
+      <li>En <span class="btnref">Stock</span>, tocá <span class="btnref">± ajustar</span> en el producto.</li>
+      <li>Poné la diferencia: <b>positiva</b> si aparecieron unidades, <b>negativa</b> si faltan.</li>
+      <li>Escribí el motivo (ej: "conteo físico junio"). Sin motivo no vale 😄.</li>
+    </ol>
+  </div>
+  <div class="task" style="--c:var(--navy)">
+    <div class="task-hd"><span class="emo">📦</span><h3>Llegó merch nueva</h3></div>
+    <div class="when">Cuando llega una reposición del proveedor</div>
+    <ol class="steps">
+      <li>Si el producto <b>ya existe</b>: en <span class="btnref">Stock</span> tocá <span class="btnref">➕ reponer</span>, indicá dónde llegó, cuántas y el costo total.</li>
+      <li>Si es un producto <b>nuevo</b>: en <span class="btnref">Catálogo</span> tocá <span class="btnref">Nuevo producto ✨</span>. El código SKU se genera solo y te sugiere precios.</li>
+    </ol>
+  </div>
+
+  <!-- SEMAFORO -->
+  <div class="sec-t"><div class="n" style="background:var(--violet)">4</div><div><h2>El semáforo del stock</h2><small>qué significa cada etiqueta</small></div></div>
+  <div class="sema">
+    <div class="sema-row"><span class="tag ok">ok</span><div>Todo en orden. Seguí con tu vida 😎</div></div>
+    <div class="sema-row"><span class="tag warn">reponer</span><div>Quedan pocas unidades (por debajo del mínimo definido). Hora de pensar en pedir más.</div></div>
+    <div class="sema-row"><span class="tag bad">revisar</span><div>Hay un número <b>negativo</b> en alguna ubicación: falta registrar algo. Se resuelve contando físicamente y usando <b>Ajustar</b>. El filtro <span class="btnref">⚠️ Solo problemas</span> te muestra solo estos casos.</div></div>
+  </div>
+
+  <!-- FAQ -->
+  <div class="sec-t"><div class="n" style="background:var(--gray)">5</div><div><h2>Preguntas frecuentes</h2><small>las dudas de siempre</small></div></div>
+  <div class="faq">
+    <details>
+      <summary>No veo el cambio que acabo de hacer</summary>
+      <p>Los cambios hechos <b>desde la app</b> aparecen al toque (la pantalla se actualiza sola al guardar). Si no lo ves, refrescá la página (F5).</p>
+    </details>
+    <details>
+      <summary>Me dice "Acceso no autorizado"</summary>
+      <p>Tu cuenta @stgeorges todavía no está en la lista de acceso. Pedile a Diego o a marketing@ que te agreguen.</p>
+    </details>
+    <details>
+      <summary>El shop le cambió el nombre a un producto</summary>
+      <p>Ningún drama: al importar, la app lo detecta como "código nuevo" y te pide asignarlo al producto correcto una sola vez. Después se lo acuerda para siempre.</p>
+    </details>
+    <details>
+      <summary>Me equivoqué en un pedido</summary>
+      <p>Podés cambiarle el estado desde la tabla de Pedidos (botón <b>cambiar</b> → Cancelado). Si la cantidad ya descontó stock de más, avisale a Diego para corregirlo con un ajuste.</p>
+    </details>
+    <details>
+      <summary>¿Puedo seguir usando el sheet viejo?</summary>
+      <p>No 🙏. El sheet "Inventario 2025 - 2026" quedó como archivo histórico. Todo lo nuevo va por Merch Hub — si algo se anota en el sheet viejo, no existe.</p>
+    </details>
+  </div>
+
+</div>
+
+<footer>
+  St George's College · Merch Hub · Marketing &amp; Admissions<br>
+  ¿Dudas? Escribí a <a href="mailto:marketing@stgeorges.edu.ar">marketing@stgeorges.edu.ar</a>
+</footer>
+
+</body>
+</html>
