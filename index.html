@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8"/>
@@ -412,6 +412,9 @@ const TABS=[
   {id:'analisis', lbl:'An&aacute;lisis',   icon:'<svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M18 20V10M12 20V4M6 20v-6"/></svg>'}
 ];
 
+// Secciones que SÍ segmentan por sede. Las demás (importar, catalogo, analisis) esconden el toggle.
+const CAMPUS_TABS={resumen:1,stock:1,pedidos:1};
+
 const LOC_LBL={'MKT-Q':'MKT Quilmes','SHOP-Q':'Shop Quilmes','MKT-N':'MKT North','SHOP-N':'Shop North','DEPOSITO':'Dep&oacute;sito'};
 const MES_TXT={'01':'ene','02':'feb','03':'mar','04':'abr','05':'may','06':'jun','07':'jul','08':'ago','09':'sep','10':'oct','11':'nov','12':'dic'};
 
@@ -543,6 +546,13 @@ function buildCampusGroup(){
     b.onclick=()=>{campus=c[0];buildCampusGroup();render();};
     g.appendChild(b);
   });
+  syncCampusUI();
+}
+
+// Muestra el toggle de sede solo en las secciones que segmentan por sede.
+function syncCampusUI(){
+  const g=document.getElementById('campus-group');
+  if(g)g.style.display=CAMPUS_TABS[activeTab]?'flex':'none';
 }
 
 function buildSidebarNav(){
@@ -560,6 +570,7 @@ function buildSidebarNav(){
       document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
       const pn=document.getElementById('panel-'+tab.id);if(pn)pn.classList.add('active');
       window.scrollTo({top:0,behavior:'smooth'});
+      syncCampusUI();
       drawCharts();
       if(isMobile()){document.getElementById('sidebar').classList.remove('mobile-open');document.getElementById('mob-overlay').classList.remove('active');}
     };
@@ -616,6 +627,7 @@ function render(){
     panel.classList.toggle('active',tab.id===activeTab);
   });
   buildSidebarNav();
+  syncCampusUI();
   drawCharts();
   hideLoad();
 }
