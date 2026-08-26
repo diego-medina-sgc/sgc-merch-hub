@@ -19,6 +19,10 @@ var OLD_SS_ID = '1z_mn9bVQGTEf_dIkVHUtLzZ-rw72JNYyr_F77mtSJPE'; // Inventario 20
 var SECRET    = 'SGC-merch-2026-x7k';  // debe coincidir con el SECRET del index.html
 var CACHE_TTL = 600;                    // 10 min
 
+// Ubicaciones reales: la mercaderia entra por MKT-Q o MKT-N y desde ahi se distribuye a los shops.
+// 'DEPOSITO' es legado de la migracion (unidades que quedaron sin ubicar). En la app se muestra
+// como 'Sin asignar' y solo se puede SACAR stock de ahi; se mantiene en LOCS para que las
+// transferencias y ajustes que lo vacian sigan validando.
 var LOCS = ['MKT-Q', 'SHOP-Q', 'MKT-N', 'SHOP-N', 'DEPOSITO'];
 
 var MOTIVOS_SEED = [
@@ -638,7 +642,7 @@ function doPost(e) {
           if (skus.indexOf(sku) > -1) { out.error = 'SKU ya existe'; break; }
           appendRow_(ss, 'PRODUCTOS', [sku, String(p.nombre || ''), num_(p.costo), num_(p.pInt), num_(p.pPub), num_(p.p26), num_(p.min), 'SI', String(p.nota || '')]);
           var dist = p.dist || {};
-          ['MKT-Q', 'SHOP-Q', 'MKT-N', 'SHOP-N', 'DEPOSITO'].forEach(function (loc2) {
+          ['MKT-Q', 'SHOP-Q', 'MKT-N', 'SHOP-N'].forEach(function (loc2) {
             var q2 = num_(dist[loc2]);
             if (q2 > 0) appendRow_(ss, 'MOVIMIENTOS', [newId_(), nowStr_(), 'compra', sku, q2, '', loc2, 0, '', '', email, 'Alta de producto']);
           });

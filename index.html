@@ -196,6 +196,7 @@ td.r{text-align:center;font-family:'Asap Condensed',sans-serif;font-size:.77rem;
 .tag.info{background:var(--navy-lt);color:var(--navy);}
 .val-pos{color:var(--green);font-weight:600;}
 .val-neg{color:var(--red);font-weight:600;}
+.val-warn{color:var(--amber);font-weight:600;}
 .val-ars{color:var(--teal);font-weight:600;font-family:'Asap Condensed',sans-serif;}
 [data-theme="dark"] .tw{border-color:var(--border);}
 [data-theme="dark"] .tw table{background:var(--surface);}
@@ -211,6 +212,7 @@ td.r{text-align:center;font-family:'Asap Condensed',sans-serif;font-size:.77rem;
 [data-theme="dark"] .tag.info{background:rgba(33,52,99,.35);color:#93a5d8;}
 [data-theme="dark"] .val-pos{color:#4ade80;}
 [data-theme="dark"] .val-neg{color:#f87171;}
+[data-theme="dark"] .val-warn{color:#fbbf24;}
 [data-theme="dark"] .val-ars{color:#5eead4;}
 
 .insight-strip{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:20px;}
@@ -259,10 +261,12 @@ td.r{text-align:center;font-family:'Asap Condensed',sans-serif;font-size:.77rem;
 .pill.active{background:var(--teal);border-color:var(--teal);color:#fff;}
 .pill.active.p-red{background:var(--red);border-color:var(--red);}
 .pill.active.p-navy{background:var(--navy);border-color:var(--navy);}
+.pill.active.p-amber{background:var(--amber);border-color:var(--amber);}
 [data-theme="dark"] .pill{background:var(--surface2);border-color:var(--border);color:var(--text-muted);}
 [data-theme="dark"] .pill.active{background:var(--teal);border-color:var(--teal);color:#fff;}
 [data-theme="dark"] .pill.active.p-red{background:#C01A2C;border-color:#E84057;}
 [data-theme="dark"] .pill.active.p-navy{background:#1E3A7A;border-color:#4A6CB3;}
+[data-theme="dark"] .pill.active.p-amber{background:#B45309;border-color:#F59E0B;}
 
 .search{padding:8px 14px;border:1.5px solid var(--line);border-radius:20px;font-family:'Asap',sans-serif;font-size:.8rem;background:var(--white);color:var(--text);outline:none;min-width:220px;}
 .search:focus{border-color:var(--teal);}
@@ -415,7 +419,11 @@ const TABS=[
 // Secciones que SÍ segmentan por sede. Las demás (importar, catalogo, analisis) esconden el toggle.
 const CAMPUS_TABS={resumen:1,stock:1,pedidos:1};
 
-const LOC_LBL={'MKT-Q':'MKT Quilmes','SHOP-Q':'Shop Quilmes','MKT-N':'MKT North','SHOP-N':'Shop North','DEPOSITO':'Dep&oacute;sito'};
+/* Ubicaciones reales: la mercaderia entra por MKT Quilmes o MKT North y desde ahi se distribuye.
+   'DEPOSITO' es una ubicacion legado de la migracion (unidades que quedaron sin ubicar):
+   se muestra como 'Sin asignar', solo se puede sacar stock de ahi, nunca meter. */
+const LOC_LBL={'MKT-Q':'MKT Quilmes','SHOP-Q':'Shop Quilmes','MKT-N':'MKT North','SHOP-N':'Shop North','DEPOSITO':'Sin asignar'};
+const LOCS_ACTIVAS=['MKT-Q','SHOP-Q','MKT-N','SHOP-N'];
 const MES_TXT={'01':'ene','02':'feb','03':'mar','04':'abr','05':'may','06':'jun','07':'jul','08':'ago','09':'sep','10':'oct','11':'nov','12':'dic'};
 
 /* ============ HELPERS ============ */
@@ -729,11 +737,14 @@ function estadoTag(e){
 }
 
 /* ============ PANEL: STOCK ============ */
-let stockQ='',stockOnlyIssues=false;
+let stockQ='',stockOnlyIssues=false,stockOnlyDep=false;
+function depTotales(){const r=(D.stock||[]).filter(s=>s.dep!==0);return {prods:r.length,units:r.reduce((a,s)=>a+s.dep,0)};}
 function buildStock(){
   const wrap=document.createElement('div');
   wrap.appendChild(pageHeader('Stock','d&oacute;nde est&aacute; cada cosa &middot; '+campTxt()));
   wrap.appendChild(div('banner','<span>&#128221;</span><div>El stock se calcula <b>solo</b> con movimientos registrados (compras, ventas, pedidos, transferencias y ajustes). Si ves un n&uacute;mero rojo, falta registrar algo: us&aacute; <b>Ajustar</b> despu&eacute;s de un conteo f&iacute;sico.</div>'));
+  const dt=depTotales();
+  if(dt.prods)wrap.appendChild(div('banner warn','<span>&#128205;</span><div>Hay <b>'+fN(dt.units)+'</b> unidades <b>sin asignar</b> en <b>'+dt.prods+'</b> productos: quedaron sin ubicaci&oacute;n cuando se migr&oacute; el inventario viejo. Us&aacute; <b>Mover</b> para mandarlas a MKT Quilmes o MKT North seg&uacute;n d&oacute;nde est&eacute;n f&iacute;sicamente. Cuando llegue a cero, la columna desaparece sola.</div>'));
 
   const bar=div('',' ');bar.style.cssText='display:flex;gap:10px;align-items:center;margin-bottom:14px;flex-wrap:wrap;';
   const inp=document.createElement('input');inp.className='search';inp.placeholder='Buscar producto...';inp.value=stockQ;
@@ -741,6 +752,11 @@ function buildStock(){
   const chk=document.createElement('button');chk.className='pill'+(stockOnlyIssues?' active p-red':'');chk.innerHTML='&#9888;&#65039; Solo problemas';
   chk.onclick=()=>{stockOnlyIssues=!stockOnlyIssues;chk.classList.toggle('active',stockOnlyIssues);chk.classList.toggle('p-red',stockOnlyIssues);refreshStockTable();};
   bar.innerHTML='';bar.appendChild(inp);bar.appendChild(chk);
+  if(dt.prods){
+    const chd=document.createElement('button');chd.className='pill'+(stockOnlyDep?' active p-amber':'');chd.innerHTML='&#128205; Sin asignar ('+dt.prods+')';
+    chd.onclick=()=>{stockOnlyDep=!stockOnlyDep;chd.classList.toggle('active',stockOnlyDep);chd.classList.toggle('p-amber',stockOnlyDep);refreshStockTable();};
+    bar.appendChild(chd);
+  }
   wrap.appendChild(bar);
 
   const holder=div('tw scroll-y');holder.id='stock-holder';
@@ -753,38 +769,54 @@ function refreshStockTable(){
   const q=stockQ.toLowerCase();
   let rows=(D.stock||[]).filter(s=>(!q||s.nombre.toLowerCase().includes(q)||s.sku.toLowerCase().includes(q)));
   if(stockOnlyIssues)rows=rows.filter(s=>s.neg||(s.min>0&&s.total<=s.min));
+  if(stockOnlyDep)rows=rows.filter(s=>s.dep!==0);
   const showQ=campus!=='n',showN=campus!=='q';
+  const showDep=rows.some(s=>s.dep!==0);
   let head='<tr><th>Producto</th>';
   if(showQ)head+='<th>MKT Q</th><th>Shop Q</th>';
   if(showN)head+='<th>MKT N</th><th>Shop N</th>';
-  head+='<th>Dep&oacute;sito</th><th>Total</th><th>Estado</th><th>Acciones</th></tr>';
+  if(showDep)head+='<th title="Unidades sin ubicaci&oacute;n asignada (vienen de la migraci&oacute;n). Mandalas a MKT Q o MKT N con Mover.">Sin asignar</th>';
+  head+='<th>Total</th><th>Estado</th><th>Acciones</th></tr>';
+  const ncols=1+(showQ?2:0)+(showN?2:0)+(showDep?1:0)+3;
   const cell=v=>'<td class="r'+(v<0?' val-neg':'')+'">'+fN(v)+'</td>';
+  const cellDep=v=>'<td class="r'+(v<0?' val-neg':(v>0?' val-warn':''))+'">'+fN(v)+'</td>';
   const body=rows.map(s=>{
     let tr='<tr><td>'+esc(s.nombre)+' <span style="color:var(--text-muted);font-size:.68rem">'+esc(s.sku)+'</span></td>';
     if(showQ)tr+=cell(s.mktQ)+cell(s.shopQ);
     if(showN)tr+=cell(s.mktN)+cell(s.shopN);
-    tr+=cell(s.dep)+'<td class="r" style="font-weight:700">'+fN(s.total)+'</td>';
-    let tag=s.neg?'<span class="tag bad">revisar</span>':(s.min>0&&s.total<=s.min?'<span class="tag warn">reponer</span>':'<span class="tag ok">ok</span>');
+    if(showDep)tr+=cellDep(s.dep);
+    tr+='<td class="r" style="font-weight:700">'+fN(s.total)+'</td>';
+    let tag=s.neg?'<span class="tag bad">revisar</span>':(s.min>0&&s.total<=s.min?'<span class="tag warn">reponer</span>':(s.dep!==0?'<span class="tag warn">ubicar</span>':'<span class="tag ok">ok</span>'));
     tr+='<td class="r">'+tag+'</td>';
     tr+='<td class="r"><button class="btn-mini" onclick="modalTransfer(\''+s.sku+'\')">&#8644; mover</button> <button class="btn-mini" onclick="modalAdjust(\''+s.sku+'\')">&#177; ajustar</button> <button class="btn-mini" onclick="modalRestock(\''+s.sku+'\')">&#10133; reponer</button></td></tr>';
     return tr;
   }).join('');
-  holder.innerHTML='<table><thead>'+head+'</thead><tbody>'+(body||'<tr><td colspan="9">Nada por ac&aacute;</td></tr>')+'</tbody></table>';
+  holder.innerHTML='<table><thead>'+head+'</thead><tbody>'+(body||'<tr><td colspan="'+ncols+'">Nada por ac&aacute;</td></tr>')+'</tbody></table>';
 }
 
-function locOptions(sel){return Object.keys(LOC_LBL).map(l=>'<option value="'+l+'"'+(l===sel?' selected':'')+'>'+LOC_LBL[l]+'</option>').join('');}
+/* incluirSinAsignar: solo donde tiene sentido SACAR stock del limbo de la migracion */
+function locOptions(sel,incluirSinAsignar){
+  const locs=incluirSinAsignar?Object.keys(LOC_LBL):LOCS_ACTIVAS;
+  return locs.map(l=>'<option value="'+l+'"'+(l===sel?' selected':'')+'>'+LOC_LBL[l]+'</option>').join('');
+}
 
 function modalTransfer(sku){
+  const sD=(D.stock||[]).find(x=>x.sku===sku)||{dep:0};
+  const hayDep=sD.dep>0;
+  const aviso=hayDep?'<div class="banner warn" style="margin-bottom:14px"><span>&#128205;</span><div>Este producto tiene <b>'+fN(sD.dep)+'</b> unidades <b>sin asignar</b>. Mandalas a <b>MKT Quilmes</b> o <b>MKT North</b> seg&uacute;n d&oacute;nde est&eacute;n f&iacute;sicamente.</div></div>':'';
   openModal('&#8644; Mover &middot; '+esc(prodName(sku)),
-    '<div class="frm">'+
-    '<div class="fld"><label>Desde</label><select id="tf-desde">'+locOptions('DEPOSITO')+'</select></div>'+
-    '<div class="fld"><label>Hacia</label><select id="tf-hacia">'+locOptions('MKT-Q')+'</select></div>'+
+    aviso+'<div class="frm">'+
+    '<div class="fld"><label>Desde</label><select id="tf-desde">'+locOptions(hayDep?'DEPOSITO':'MKT-Q',true)+'</select></div>'+
+    '<div class="fld"><label>Hacia</label><select id="tf-hacia">'+locOptions(hayDep?'MKT-Q':'SHOP-Q')+'</select></div>'+
     '<div class="fld"><label>Cantidad</label><input id="tf-cant" type="number" min="1" value="1"/></div>'+
     '<div class="fld frm-full"><label>Nota</label><input id="tf-nota" type="text" placeholder="opcional"/></div></div>',
     '<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-teal" id="tf-go">Mover</button>');
   document.getElementById('tf-go').onclick=async function(){
+    const de=document.getElementById('tf-desde').value,ha=document.getElementById('tf-hacia').value;
+    if(de===ha){toast('Origen y destino no pueden ser el mismo','err');return;}
+    if(!(+document.getElementById('tf-cant').value>0)){toast('La cantidad tiene que ser mayor a 0','err');return;}
     try{
-      await apiPost('transfer',{sku:sku,desde:document.getElementById('tf-desde').value,hacia:document.getElementById('tf-hacia').value,cantidad:+document.getElementById('tf-cant').value,nota:document.getElementById('tf-nota').value},this);
+      await apiPost('transfer',{sku:sku,desde:de,hacia:ha,cantidad:+document.getElementById('tf-cant').value,nota:document.getElementById('tf-nota').value},this);
       closeModal();toast('Transferencia registrada &#10003;'.replace('&#10003;','✓'),'ok');fetchData(true);
     }catch(e){toast('Error: '+e.message,'err');}
   };
@@ -793,7 +825,7 @@ function modalAdjust(sku){
   openModal('&#177; Ajustar &middot; '+esc(prodName(sku)),
     '<div class="banner warn" style="margin-bottom:14px"><span>&#128270;</span><div>Us&aacute; esto despu&eacute;s de un <b>conteo f&iacute;sico</b>. Cantidad positiva = aparecieron unidades; negativa = faltan.</div></div>'+
     '<div class="frm">'+
-    '<div class="fld"><label>Ubicaci&oacute;n</label><select id="aj-loc">'+locOptions('DEPOSITO')+'</select></div>'+
+    '<div class="fld"><label>Ubicaci&oacute;n</label><select id="aj-loc">'+locOptions('MKT-Q',true)+'</select></div>'+
     '<div class="fld"><label>Cantidad (+/-)</label><input id="aj-cant" type="number" value="0"/></div>'+
     '<div class="fld frm-full"><label>Motivo del ajuste</label><input id="aj-nota" type="text" placeholder="ej: conteo físico jun 2026"/></div></div>',
     '<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-red" id="aj-go">Ajustar</button>');
@@ -809,7 +841,7 @@ function modalAdjust(sku){
 function modalRestock(sku){
   openModal('&#10133; Reponer &middot; '+esc(prodName(sku)),
     '<div class="frm">'+
-    '<div class="fld"><label>Lleg&oacute; a</label><select id="rs-loc">'+locOptions('DEPOSITO')+'</select></div>'+
+    '<div class="fld"><label>Lleg&oacute; a</label><select id="rs-loc">'+locOptions('MKT-Q')+'</select></div>'+
     '<div class="fld"><label>Cantidad</label><input id="rs-cant" type="number" min="1" value="1"/></div>'+
     '<div class="fld"><label>Costo total ($)</label><input id="rs-costo" type="number" min="0" value="0"/></div>'+
     '<div class="fld frm-full"><label>Nota</label><input id="rs-nota" type="text" placeholder="proveedor, remito..."/></div></div>',
@@ -1052,7 +1084,6 @@ function modalNewProduct(){
     '<div class="fld"><label>Unidades Shop Quilmes</label><input id="np-sq" type="number" min="0" value="0"/></div>'+
     '<div class="fld"><label>Unidades MKT North</label><input id="np-mn" type="number" min="0" value="0"/></div>'+
     '<div class="fld"><label>Unidades Shop North</label><input id="np-sn" type="number" min="0" value="0"/></div>'+
-    '<div class="fld"><label>Unidades Dep&oacute;sito</label><input id="np-dep" type="number" min="0" value="0"/></div>'+
     '</div><div style="font-size:.72rem;color:var(--text-muted);margin-top:10px">El SKU se genera solo (siguiente SCG libre). Sugerencia de precios: interno = costo +20%, p&uacute;blico = costo +30% redondeado.</div>',
     '<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-red" id="np-go">Crear</button>');
   const costoEl=document.getElementById('np-costo');
@@ -1071,8 +1102,7 @@ function modalNewProduct(){
         pInt:+document.getElementById('np-int').value,pPub:+document.getElementById('np-pub').value,
         p26:+document.getElementById('np-pub').value,min:+document.getElementById('np-min').value,
         dist:{'MKT-Q':+document.getElementById('np-mq').value,'SHOP-Q':+document.getElementById('np-sq').value,
-              'MKT-N':+document.getElementById('np-mn').value,'SHOP-N':+document.getElementById('np-sn').value,
-              'DEPOSITO':+document.getElementById('np-dep').value}},this);
+              'MKT-N':+document.getElementById('np-mn').value,'SHOP-N':+document.getElementById('np-sn').value}},this);
       closeModal();toast('Producto '+r.sku+' creado ✓','ok');fetchData(true);
     }catch(e){toast('Error: '+e.message,'err');}
   };
