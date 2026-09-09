@@ -577,6 +577,51 @@ function doPost(e) {
           break;
         }
 
+        case 'newOrderBatch': {
+          // Un pedido con varios productos: misma cabecera, N renglones.
+          // Genera una fila en PEDIDOS y otra en MOVIMIENTOS por producto,
+          // igual que newOrder, para no cambiar el modelo de datos.
+          var itemsB = p.items || [];
+          if (!itemsB.length) { out.error = 'el pedido no tiene productos'; break; }
+          if (itemsB.length > 100) { out.error = 'demasiados renglones (max 100)'; break; }
+          var prodsB = readTab_(ss, 'PRODUCTOS');
+          var bySkuB = {};
+          prodsB.forEach(function (pr) { bySkuB[String(pr.sku)] = pr; });
+          var fechaB = nowStr_();
+          var siteB = String(p.site || 'Quilmes');
+          var desdeB = siteB.toLowerCase().indexOf('north') > -1 ? 'MKT-N' : 'MKT-Q';
+          // newId_() solo varia en 4 digitos al azar; en un bucle cerrado se puede
+          // repetir, y el id del pedido es la clave para cambiarle el estado despues.
+          var stampB = Utilities.formatDate(new Date(), 'GMT', 'yyMMddHHmmss');
+          var seedB = Math.floor(Math.random() * 9000 + 1000);
+          var filasPed = [], filasMov = [], detalleB = [], totalB = 0, errB = '';
+          for (var nB = 0; nB < itemsB.length; nB++) {
+            var itB = itemsB[nB];
+            var prodB = bySkuB[String(itB.sku)];
+            if (!prodB) { errB = 'producto no encontrado: ' + itB.sku; break; }
+            var qtyB = num_(itB.cantidad);
+            if (qtyB <= 0) { errB = 'cantidad invalida en ' + prodB.nombre; break; }
+            var listaB = String(itB.lista || 'regalo');
+            var precioB = listaB === 'interno' ? num_(prodB.precio_interno)
+              : (listaB === 'publico' ? (num_(prodB.precio_2026) || num_(prodB.precio_publico)) : 0);
+            var valorB = precioB * qtyB;
+            var idB = stampB + '-' + (seedB + nB);
+            filasPed.push([idB, fechaB, String(p.solicitante || ''), String(p.area || ''), siteB,
+              String(p.motivo || ''), String(itB.sku), String(prodB.nombre), qtyB, 'Entregado',
+              listaB, valorB, email, String(p.nota || '')]);
+            filasMov.push([stampB + '-m' + (seedB + nB), fechaB, 'pedido', String(itB.sku), qtyB,
+              desdeB, '', valorB, '', String(p.motivo || ''), email, 'Pedido ' + idB]);
+            totalB += valorB;
+            detalleB.push({ id: idB, sku: String(itB.sku), nombre: String(prodB.nombre), cantidad: qtyB, valor: valorB });
+          }
+          // se valida todo antes de escribir: o entra el pedido entero o no entra nada
+          if (errB) { out.error = errB; break; }
+          appendRows_(ss, 'PEDIDOS', filasPed);
+          appendRows_(ss, 'MOVIMIENTOS', filasMov);
+          out.ok = true; out.n = filasPed.length; out.total = totalB; out.items = detalleB;
+          break;
+        }
+
         case 'updateOrderStatus': {
           // PEDIDOS: 1 id, 2 fecha, 3 solicitante, 4 area, 5 site, 6 motivo, 7 sku,
           //          8 nombre, 9 cantidad, 10 estado, 11 lista, 12 valor, 13 email, 14 nota
@@ -737,6 +782,14 @@ function jsonOut_(o) {
 
 function appendRow_(ss, tabName, row) {
   ss.getSheetByName(tabName).appendRow(row);
+}
+
+// Escribe varias filas de una sola vez. appendRow_ en un bucle hace una
+// llamada al Sheet por fila y un pedido de 20 productos se vuelve eterno.
+function appendRows_(ss, tabName, rows) {
+  if (!rows || !rows.length) return;
+  var sh = ss.getSheetByName(tabName);
+  sh.getRange(sh.getLastRow() + 1, 1, rows.length, rows[0].length).setValues(rows);
 }
 
 function findProduct_(ss, sku) {
