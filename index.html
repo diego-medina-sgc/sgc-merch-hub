@@ -308,6 +308,24 @@ footer{text-align:center;padding:14px 32px;font-size:.61rem;color:var(--gray);fo
   #mob-overlay.active{opacity:1;pointer-events:auto !important;}
   .content{margin-left:0 !important;}
   .panel{padding:36px 14px 16px;}
+  /* iOS Safari hace zoom al enfocar un input de menos de 16px */
+  .fld input,.fld select,.fld textarea,.search{font-size:16px;}
+  .search{min-width:0;width:100%;}
+  /* tablas como tarjetas: cada fila apilada, sin scroll lateral */
+  .tw.cards{overflow-x:visible;border:0;box-shadow:none;border-radius:0;background:transparent;}
+  .tw.cards table{background:transparent;}
+  .tw.cards thead{display:none;}
+  .tw.cards tbody,.tw.cards tr,.tw.cards td{display:block;width:100%;}
+  .tw.cards tr{border:1px solid var(--line);border-radius:10px;margin-bottom:10px;padding:10px 13px;background:var(--white);box-shadow:var(--card-shadow);}
+  .tw.cards tbody tr:hover:not(.tot){background:var(--white);}
+  .tw.cards td{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:4px 0;text-align:right;border:0;font-size:.8rem;}
+  .tw.cards td::before{content:attr(data-lbl);flex:0 0 auto;font-family:'Asap Condensed',sans-serif;font-weight:700;font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--gray);text-align:left;}
+  .tw.cards td:first-child{display:block;text-align:left !important;font-weight:700;font-size:.92rem;padding:0 0 8px;margin-bottom:5px;border-bottom:1px solid var(--line);}
+  .tw.cards td:first-child::before{display:none;}
+  .tw.cards td.acciones{display:flex;flex-wrap:wrap;gap:6px;justify-content:flex-start;text-align:left;padding-top:9px;}
+  .tw.cards td.acciones::before{display:none;}
+  .tw.cards td.acciones .btn-mini{padding:7px 13px;font-size:.72rem;}
+  .tw.cards.scroll-y{max-height:none;overflow-y:visible;}
   .two,.col-6040{grid-template-columns:1fr;}
   .stat-strip{grid-template-columns:repeat(2,1fr);}
   .si{border-bottom:1px solid var(--line);}
@@ -424,6 +442,9 @@ const CAMPUS_TABS={resumen:1,stock:1,pedidos:1};
    se muestra como 'Sin asignar', solo se puede sacar stock de ahi, nunca meter. */
 const LOC_LBL={'MKT-Q':'MKT Quilmes','SHOP-Q':'Shop Quilmes','MKT-N':'MKT North','SHOP-N':'Shop North','DEPOSITO':'Sin asignar'};
 const LOCS_ACTIVAS=['MKT-Q','SHOP-Q','MKT-N','SHOP-N'];
+/* En un evento se vende al publico y no se registra a quien: el solicitante
+   deja de ser obligatorio y se autocompleta con esto. */
+const VENTA_PUBLICO='Venta al p\u00fablico';
 const MES_TXT={'01':'ene','02':'feb','03':'mar','04':'abr','05':'may','06':'jun','07':'jul','08':'ago','09':'sep','10':'oct','11':'nov','12':'dic'};
 
 /* ============ HELPERS ============ */
@@ -637,6 +658,7 @@ function render(){
   buildSidebarNav();
   syncCampusUI();
   drawCharts();
+  tagAllCells();
   hideLoad();
 }
 function buildPanel(id){
@@ -666,6 +688,26 @@ function sec(title,meta,contentEl){
   return wrap;
 }
 function div(cls,html){const d=document.createElement('div');if(cls)d.className=cls;if(html!==undefined)d.innerHTML=html;return d;}
+
+/* Etiqueta cada celda con el titulo de su columna para que en mobile la fila
+   se pueda mostrar como tarjeta apilada (ver .tw.cards en el CSS). */
+function tagCells(el){
+  if(!el)return;
+  const tbl=el.tagName==='TABLE'?el:el.querySelector('table');
+  if(!tbl)return;
+  const ths=[].slice.call(tbl.querySelectorAll('thead th')).map(t=>t.textContent.trim());
+  tbl.querySelectorAll('tbody tr').forEach(tr=>{
+    [].slice.call(tr.children).forEach((td,i)=>{
+      if(td.hasAttribute('colspan'))return;
+      const lbl=ths[i]||'';
+      td.setAttribute('data-lbl',lbl);
+      if(!lbl||td.querySelector('button'))td.classList.add('acciones');
+    });
+  });
+  const wrap=tbl.closest('.tw');
+  if(wrap)wrap.classList.add('cards');
+}
+function tagAllCells(){document.querySelectorAll('.tw').forEach(tagCells);}
 
 /* campus helpers */
 function campV(q,n){return campus==='q'?q:campus==='n'?n:q+n;}
@@ -792,6 +834,7 @@ function refreshStockTable(){
     return tr;
   }).join('');
   holder.innerHTML='<table><thead>'+head+'</thead><tbody>'+(body||'<tr><td colspan="'+ncols+'">Nada por ac&aacute;</td></tr>')+'</tbody></table>';
+  tagCells(holder);
 }
 
 /* incluirSinAsignar: solo donde tiene sentido SACAR stock del limbo de la migracion */
@@ -871,7 +914,7 @@ function buildPedidos(){
   const optsMot=((D.lists&&D.lists.motivos)||[]).map(m=>'<option>'+esc(m)+'</option>').join('');
   const optsArea=((D.lists&&D.lists.areas)||[]).map(a=>'<option>'+esc(a)+'</option>').join('');
   card.innerHTML='<div class="frm">'+
-    '<div class="fld"><label>Solicitante</label><input id="pd-sol" type="text" placeholder="nombre y apellido"/></div>'+
+    '<div class="fld"><label>Solicitante <span id="pd-sol-hint" style="text-transform:none;letter-spacing:0;color:var(--text-muted)"></span></label><input id="pd-sol" type="text" placeholder="nombre y apellido"/></div>'+
     '<div class="fld"><label>&Aacute;rea</label><select id="pd-area">'+optsArea+'</select></div>'+
     '<div class="fld"><label>Sede</label><select id="pd-site"><option>Quilmes</option><option>North</option></select></div>'+
     '<div class="fld"><label>Motivo</label><select id="pd-mot">'+optsMot+'</select></div>'+
@@ -890,17 +933,27 @@ function buildPedidos(){
       const cant=+document.getElementById('pd-cant').value||0;
       const precio=!p?0:lista==='interno'?p.pInt:lista==='publico'?pubPrice(p):0;
       document.getElementById('pd-valor').value=fARS(precio*cant);
+      // venta al publico = mostrador: no hay solicitante que registrar
+      const solEl=document.getElementById('pd-sol'),hintEl=document.getElementById('pd-sol-hint');
+      if(lista==='publico'){
+        if(!solEl.value.trim())solEl.value=VENTA_PUBLICO;
+        hintEl.textContent='(opcional)';
+      } else {
+        if(solEl.value.trim()===VENTA_PUBLICO)solEl.value='';
+        hintEl.textContent='';
+      }
     };
     ['pd-sku','pd-lista','pd-cant'].forEach(id=>{const el=document.getElementById(id);if(el){el.onchange=upd;el.oninput=upd;}});
     upd();
     document.getElementById('pd-go').onclick=async function(){
-      const sol=document.getElementById('pd-sol').value.trim();
+      const listaSel=document.getElementById('pd-lista').value;
+      const sol=document.getElementById('pd-sol').value.trim()||(listaSel==='publico'?VENTA_PUBLICO:'');
       if(!sol){toast('Falta el solicitante','err');return;}
       try{
         const r=await apiPost('newOrder',{solicitante:sol,area:document.getElementById('pd-area').value,
           site:document.getElementById('pd-site').value,motivo:document.getElementById('pd-mot').value,
           sku:document.getElementById('pd-sku').value,cantidad:+document.getElementById('pd-cant').value,
-          lista:document.getElementById('pd-lista').value,nota:document.getElementById('pd-nota').value},this);
+          lista:listaSel,nota:document.getElementById('pd-nota').value},this);
         toast('Pedido registrado ✓ ('+fARS(r.valor)+')','ok');fetchData(true);
       }catch(e){toast('Error: '+e.message,'err');}
     };
@@ -933,15 +986,20 @@ function refreshPedTable(){
     '<td class="r">'+esc(p.lista)+'</td><td class="r val-ars">'+fARS(p.valor)+'</td><td class="r">'+estadoTag(p.estado)+'</td>'+
     '<td class="r"><button class="btn-mini" onclick="modalEstado(\''+p.id+'\',\''+esc(p.estado)+'\')">cambiar</button></td></tr>').join('');
   holder.innerHTML='<table><thead><tr><th>Producto</th><th>Fecha</th><th>Solicitante</th><th>Sede</th><th>Motivo</th><th>Cant</th><th>Lista</th><th>Valor</th><th>Estado</th><th></th></tr></thead><tbody>'+(body||'<tr><td colspan="10">Sin resultados</td></tr>')+'</tbody></table>';
+  tagCells(holder);
 }
 function modalEstado(id,actual){
   const opts=['Pendiente','Entregado','Cancelado','Pérdida'].map(e=>'<option'+(e===actual?' selected':'')+'>'+e+'</option>').join('');
-  openModal('Cambiar estado','<div class="fld"><label>Estado del pedido</label><select id="es-val">'+opts+'</select></div>',
+  openModal('Cambiar estado',
+    '<div class="banner" style="margin-bottom:14px"><span>&#128260;</span><div><b>Cancelado</b> devuelve las unidades al MKT de la sede, con el movimiento registrado. <b>P&eacute;rdida</b> no las devuelve: la mercader&iacute;a se perdi&oacute; de verdad y el stock queda descontado.</div></div>'+
+    '<div class="fld"><label>Estado del pedido</label><select id="es-val">'+opts+'</select></div>',
     '<button class="btn btn-ghost" onclick="closeModal()">Cancelar</button><button class="btn btn-teal" id="es-go">Guardar</button>');
   document.getElementById('es-go').onclick=async function(){
     try{
-      await apiPost('updateOrderStatus',{id:id,estado:document.getElementById('es-val').value},this);
-      closeModal();toast('Estado actualizado ✓','ok');fetchData(true);
+      const r=await apiPost('updateOrderStatus',{id:id,estado:document.getElementById('es-val').value},this);
+      closeModal();
+      const extra=r&&r.devuelto?' · '+r.devuelto+' u. devueltas al stock':(r&&r.descontado?' · '+r.descontado+' u. descontadas de nuevo':'');
+      toast('Estado actualizado ✓'+extra,'ok');fetchData(true);
     }catch(e){toast('Error: '+e.message,'err');}
   };
 }
@@ -1132,6 +1190,45 @@ function modalEditProduct(sku){
 }
 
 /* ============ PANEL: ANALISIS ============ */
+/* Los motivos se repiten todos los anios (Steeplechase, Open Day, Founders Day...).
+   Sin filtro de periodo, el panel sumaba todas las ediciones en un solo renglon. */
+let anaPeriodo='todo';
+function aniosPedidos(){
+  const s={};
+  (D.pedidos||[]).forEach(p=>{const a=String(p.fecha||'').slice(0,4);if(a.length===4)s[a]=1;});
+  return Object.keys(s).sort().reverse();
+}
+function periodoTxt(){return anaPeriodo==='todo'?'todo el hist&oacute;rico':'a&ntilde;o '+anaPeriodo;}
+function periodoPills(){
+  const bar=div('pills');bar.style.cssText='margin-bottom:14px;';
+  [['todo','Todo el hist\u00f3rico']].concat(aniosPedidos().map(a=>[a,a])).forEach(par=>{
+    const b=document.createElement('button');
+    b.className='pill'+(anaPeriodo===par[0]?' active p-navy':'');
+    b.textContent=par[1];
+    b.onclick=()=>{anaPeriodo=par[0];render();};
+    bar.appendChild(b);
+  });
+  return bar;
+}
+/* Misma formula que el backend (cantidad x precio publico vigente, sin cancelados),
+   pero recalculada en el front para poder acotarla a un anio. */
+function motivosPorPeriodo(anio){
+  const prodBySku={};(D.products||[]).forEach(p=>prodBySku[p.sku]=p);
+  const acc={};
+  (D.pedidos||[]).forEach(p=>{
+    if(String(p.estado||'')==='Cancelado')return;
+    if(anio!=='todo'&&String(p.fecha||'').slice(0,4)!==anio)return;
+    const m=String(p.motivo||'Sin motivo');
+    if(!acc[m])acc[m]={motivo:m,units:0,regaladas:0,vendidas:0,value:0,charged:0};
+    const q=p.cantidad||0;
+    acc[m].units+=q;
+    acc[m].charged+=p.valor||0;
+    // interno y publico son ventas; solo 'regalo' es inversion de marca
+    if(String(p.lista||'regalo')==='regalo'){acc[m].regaladas+=q;acc[m].value+=q*pubPrice(prodBySku[p.sku]);}
+    else acc[m].vendidas+=q;
+  });
+  return Object.keys(acc).map(k=>acc[k]).sort((a,b)=>(b.value+b.charged)-(a.value+a.charged));
+}
 function buildAnalisis(){
   const wrap=document.createElement('div');
   wrap.appendChild(pageHeader('An&aacute;lisis','&iquest;la merch rinde? las dos caras de la inversi&oacute;n'));
@@ -1143,7 +1240,7 @@ function buildAnalisis(){
   const roiCom=inv>0?ven/inv-1:0;
   const roiTot=inv>0?(ven+dist)/inv-1:0;
 
-  wrap.appendChild(div('banner','<span>&#129504;</span><div><b>Dos formas de leer la merch:</b> el <b>ROI comercial</b> solo cuenta plata que entr&oacute; (ventas de shops + pedidos cobrados). El <b>ROI total</b> le suma el valor de lo regalado a precio p&uacute;blico &mdash; porque un regalo en una admisi&oacute;n o un evento es inversi&oacute;n de marca, no p&eacute;rdida.</div>'));
+  wrap.appendChild(div('banner','<span>&#129504;</span><div><b>Dos formas de leer la merch:</b> el <b>ROI comercial</b> solo cuenta plata que entr&oacute; (ventas de shops + pedidos cobrados). El <b>ROI total</b> le suma el valor de lo regalado a precio p&uacute;blico &mdash; porque un regalo en una admisi&oacute;n o un evento es inversi&oacute;n de marca, no p&eacute;rdida. Un pedido con lista <b>Interno</b> o <b>P&uacute;blico</b> cuenta como <b>venta</b>, no como regalo.</div>'));
 
   const strip=div('stat-strip',
     '<div class="si"><div class="si-lbl">Inversi&oacute;n total</div><div class="si-val">'+fARS(inv)+'</div><div class="si-foot">compras a costo</div></div>'+
@@ -1154,12 +1251,17 @@ function buildAnalisis(){
   wrap.appendChild(sec('El n&uacute;mero grande','',strip));
 
   const grid=div('col-6040');
-  grid.appendChild(div('cc','<div class="cc-hd"><span class="cc-ttl">&iquest;A d&oacute;nde va lo que regalamos?</span><span class="cc-sub">valor a precio p&uacute;blico por motivo</span></div><div style="height:300px"><canvas id="ch-motivos"></canvas></div>'));
-  const motivos=(D.distribuido&&D.distribuido.byMotivo)||[];
-  const mRows=motivos.slice(0,12).map(m=>'<tr><td>'+esc(m.motivo)+'</td><td class="r">'+fN(m.units)+'</td><td class="r val-ars">'+fARS(m.value)+'</td></tr>').join('');
-  grid.appendChild(div('tw scroll-y','<table><thead><tr><th>Motivo</th><th>Unidades</th><th>Valor</th></tr></thead><tbody>'+mRows+'</tbody></table>'));
-  wrap.appendChild(sec('Inversi&oacute;n de marca','d&oacute;nde impacta la merch regalada',grid));
+  grid.appendChild(div('cc','<div class="cc-hd"><span class="cc-ttl">&iquest;A d&oacute;nde va lo que regalamos?</span><span class="cc-sub">valor a precio p&uacute;blico por motivo &middot; '+periodoTxt()+'</span></div><div style="height:300px"><canvas id="ch-motivos"></canvas></div>'));
+  const motivos=motivosPorPeriodo(anaPeriodo);
+  const mRows=motivos.slice(0,12).map(m=>'<tr><td>'+esc(m.motivo)+'</td><td class="r">'+fN(m.regaladas)+'</td><td class="r">'+fN(m.vendidas)+'</td><td class="r val-ars">'+fARS(m.value)+'</td><td class="r val-ars">'+fARS(m.charged)+'</td></tr>').join('');
+  grid.appendChild(div('tw scroll-y','<table><thead><tr><th>Motivo</th><th title="unidades entregadas sin cobrar">Regaladas</th><th title="unidades cobradas a precio interno o p&uacute;blico">Vendidas</th><th title="valor de lo regalado, a precio p&uacute;blico">Valor regalado</th><th>Cobrado</th></tr></thead><tbody>'+(mRows||'<tr><td colspan="5">Sin pedidos en este per&iacute;odo</td></tr>')+'</tbody></table>'));
+  const secMot=sec('Inversi&oacute;n de marca','d&oacute;nde impacta la merch regalada &middot; '+periodoTxt(),null);
+  secMot.appendChild(periodoPills());
+  secMot.appendChild(grid);
+  wrap.appendChild(secMot);
 
+  // El ROI por producto sigue siendo historico: el backend no manda las fechas
+  // de compras y ventas, solo los totales acumulados.
   const sorted=roi.slice().sort((a,b)=>b.inversion-a.inversion);
   const rRows=sorted.map(r=>{
     return '<tr><td>'+esc(r.nombre)+'</td><td class="r">'+fN(r.comprado)+'</td><td class="r">'+fARS(r.inversion)+'</td>'+
@@ -1169,8 +1271,8 @@ function buildAnalisis(){
       '<td class="r"><span class="'+(r.roiTotal>=0?'val-pos':'val-neg')+'">'+fPct(r.roiTotal)+'</span></td>'+
       '<td class="r">'+fN(r.stockRem)+'</td></tr>';
   }).join('');
-  const tbl=div('tw scroll-y','<table><thead><tr><th>Producto</th><th>Comprado</th><th>Inversi&oacute;n</th><th>Vendidos</th><th>Ingresos</th><th>Regalados</th><th>Valor regalado</th><th>ROI com.</th><th>ROI total</th><th>Stock</th></tr></thead><tbody>'+rRows+'</tbody></table>');
-  wrap.appendChild(sec('Producto por producto','ordenado por inversi&oacute;n',tbl));
+  const tbl=div('tw scroll-y','<table><thead><tr><th>Producto</th><th>Comprado</th><th>Inversi&oacute;n</th><th title="ventas de shops + pedidos cobrados">Vendidos</th><th>Ingresos</th><th title="solo pedidos con lista Regalo">Regalados</th><th>Valor regalado</th><th>ROI com.</th><th>ROI total</th><th>Stock</th></tr></thead><tbody>'+rRows+'</tbody></table>');
+  wrap.appendChild(sec('Producto por producto','ordenado por inversi&oacute;n &middot; siempre hist&oacute;rico completo',tbl));
   return wrap;
 }
 
@@ -1209,8 +1311,8 @@ function drawCharts(){
                 y:{grid:{display:false},ticks:getTCK(),border:{display:false}}}}});
   }
   const elM=document.getElementById('ch-motivos');
-  if(elM&&D.distribuido&&!charts.motivos){
-    const ms=(D.distribuido.byMotivo||[]).slice(0,8);
+  if(elM&&D.pedidos&&!charts.motivos){
+    const ms=motivosPorPeriodo(anaPeriodo).slice(0,8);
     charts.motivos=new Chart(elM,{type:'bar',
       data:{labels:ms.map(m=>m.motivo.length>22?m.motivo.slice(0,21)+'…':m.motivo),
         datasets:[{label:'Valor',data:ms.map(m=>m.value),backgroundColor:'#6B6EB3',borderRadius:5}]},

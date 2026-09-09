@@ -424,12 +424,21 @@ function buildPayload_() {
     var valorInst = qty * pubPrice;
     var motivo = String(p.motivo || 'Sin motivo');
     var estado = String(p.estado || '');
+    // Un pedido con lista 'interno' o 'publico' es una VENTA, no un regalo.
+    // Solo los de lista 'regalo' cuentan como inversion de marca.
+    var esRegalo = (lista === 'regalo');
     if (estado !== 'Cancelado') {
-      if (!distMotivo[motivo]) distMotivo[motivo] = { units: 0, value: 0, charged: 0 };
-      distMotivo[motivo].units += qty; distMotivo[motivo].value += valorInst; distMotivo[motivo].charged += num_(p.valor);
+      if (!distMotivo[motivo]) distMotivo[motivo] = { units: 0, regaladas: 0, vendidas: 0, value: 0, charged: 0 };
+      distMotivo[motivo].units += qty;
+      distMotivo[motivo].charged += num_(p.valor);
+      if (esRegalo) { distMotivo[motivo].regaladas += qty; distMotivo[motivo].value += valorInst; }
+      else { distMotivo[motivo].vendidas += qty; }
       if (sku) {
-        if (!distSku[sku]) distSku[sku] = { units: 0, value: 0, charged: 0 };
-        distSku[sku].units += qty; distSku[sku].value += valorInst; distSku[sku].charged += num_(p.valor);
+        if (!distSku[sku]) distSku[sku] = { units: 0, regaladas: 0, vendidas: 0, value: 0, charged: 0 };
+        distSku[sku].units += qty;
+        distSku[sku].charged += num_(p.valor);
+        if (esRegalo) { distSku[sku].regaladas += qty; distSku[sku].value += valorInst; }
+        else { distSku[sku].vendidas += qty; }
       }
     }
     return { id: String(p.id), fecha: dstr_(p.fecha), solicitante: String(p.solicitante || ''),
@@ -455,13 +464,15 @@ function buildPayload_() {
     var comprado = comprasSku[p.sku] || 0;
     var inversion = comprado * p.costo;
     var v = ventasSku[p.sku] || { units: 0, amount: 0 };
-    var d = distSku[p.sku] || { units: 0, value: 0, charged: 0 };
+    var d = distSku[p.sku] || { units: 0, regaladas: 0, vendidas: 0, value: 0, charged: 0 };
     var retorno = v.amount + d.charged;
     var st = stock[p.sku];
     var rem = st['MKT-Q'] + st['SHOP-Q'] + st['MKT-N'] + st['SHOP-N'] + st['DEPOSITO'];
     return { sku: p.sku, nombre: p.nombre, comprado: comprado, costo: p.costo,
-             inversion: inversion, vendidos: v.units, ventas: v.amount,
-             regalados: d.units, valorDist: d.value, cobradoPedidos: d.charged,
+             inversion: inversion,
+             vendidos: v.units + d.vendidas,   // shops + pedidos cobrados
+             vendidosShop: v.units, vendidosPedidos: d.vendidas, ventas: v.amount,
+             regalados: d.regaladas, valorDist: d.value, cobradoPedidos: d.charged,
              stockRem: rem,
              roiCom: inversion > 0 ? (retorno / inversion - 1) : 0,
              roiTotal: inversion > 0 ? ((v.amount + d.value) / inversion - 1) : 0 };
@@ -507,8 +518,9 @@ function buildPayload_() {
     },
     distribuido: {
       byMotivo: Object.keys(distMotivo).map(function (k) {
-        return { motivo: k, units: distMotivo[k].units, value: distMotivo[k].value, charged: distMotivo[k].charged };
-      }).sort(function (a, b) { return b.value - a.value; })
+        return { motivo: k, units: distMotivo[k].units, regaladas: distMotivo[k].regaladas,
+                 vendidas: distMotivo[k].vendidas, value: distMotivo[k].value, charged: distMotivo[k].charged };
+      }).sort(function (a, b) { return (b.value + b.charged) - (a.value + a.charged); })
     },
     roi: roi,
     lists: { motivos: motivos, areas: areas, sites: ['Quilmes', 'North'], locs: LOCS },
@@ -566,13 +578,36 @@ function doPost(e) {
         }
 
         case 'updateOrderStatus': {
+          // PEDIDOS: 1 id, 2 fecha, 3 solicitante, 4 area, 5 site, 6 motivo, 7 sku,
+          //          8 nombre, 9 cantidad, 10 estado, 11 lista, 12 valor, 13 email, 14 nota
           var shPe = ss.getSheetByName('PEDIDOS');
-          var ids = shPe.getRange(2, 1, Math.max(1, shPe.getLastRow() - 1), 1).getValues();
-          for (var i = 0; i < ids.length; i++) {
-            if (String(ids[i][0]) === String(p.id)) {
-              shPe.getRange(i + 2, 10).setValue(String(p.estado));
-              out.ok = true; break;
+          var lastPe = shPe.getLastRow();
+          if (lastPe < 2) { out.error = 'pedido no encontrado'; break; }
+          var pe = shPe.getRange(2, 1, lastPe - 1, 14).getValues();
+          var nuevoEst = String(p.estado);
+          for (var i = 0; i < pe.length; i++) {
+            if (String(pe[i][0]) !== String(p.id)) continue;
+            var estActual = String(pe[i][9]);
+            if (estActual === nuevoEst) { out.ok = true; break; }
+            shPe.getRange(i + 2, 10).setValue(nuevoEst);
+            // Cancelar devuelve las unidades al MKT de la sede; des-cancelar las vuelve
+            // a descontar. 'Perdida' NO devuelve: la mercaderia se perdio de verdad.
+            var skuPe = String(pe[i][6]).trim();
+            var qtyPe = num_(pe[i][8]);
+            var mktPe = String(pe[i][4]).toLowerCase().indexOf('north') > -1 ? 'MKT-N' : 'MKT-Q';
+            if (skuPe && qtyPe > 0) {
+              if (nuevoEst === 'Cancelado') {
+                appendRow_(ss, 'MOVIMIENTOS', [newId_(), nowStr_(), 'devolucion', skuPe, qtyPe,
+                  '', mktPe, 0, '', String(pe[i][5] || ''), email, 'Cancelacion pedido ' + p.id]);
+                out.devuelto = qtyPe;
+              } else if (estActual === 'Cancelado') {
+                appendRow_(ss, 'MOVIMIENTOS', [newId_(), nowStr_(), 'pedido', skuPe, qtyPe,
+                  mktPe, '', 0, '', String(pe[i][5] || ''), email, 'Reactivacion pedido ' + p.id]);
+                out.descontado = qtyPe;
+              }
             }
+            out.ok = true;
+            break;
           }
           if (!out.ok) out.error = 'pedido no encontrado';
           break;
