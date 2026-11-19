@@ -425,7 +425,8 @@ footer{text-align:center;padding:14px 32px;font-size:.61rem;color:var(--gray);fo
 /* ============ CONFIG ============ */
 const CLIENT_ID   = '451910290982-vudb6uk5047r19ruujlae16ouhdh0km8.apps.googleusercontent.com';
 const API_URL     = 'https://script.google.com/macros/s/AKfycbxLWH6WqcYB_KGVGZmN6JKSEm1oozeuxuu2WGlzSqavg-z4cyFqv_S2-78xO2bAmfld/exec'; // ej: https://script.google.com/macros/s/XXXX/exec
-const SECRET      = 'SGC-merch-2026-x7k';               // debe coincidir con el .gs
+/* 19/11/2026: sin SECRET (estaba en este archivo publico). El .gs valida el login de Google y emite una sesion firmada. */
+let SESION = '';
 const ADMIN_EMAIL = 'diego.medina@stgeorges.edu.ar';
 
 let tokenClient, accessToken, userEmail='', D={}, activeTab='resumen';
@@ -474,9 +475,9 @@ async function apiPost(action,payload,btn){
   if(btn){btn.disabled=true;btn.dataset.old=btn.innerHTML;btn.innerHTML='Guardando...';}
   try{
     const res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
-      body:JSON.stringify({action:action,secret:SECRET,email:userEmail,payload:payload})});
+      body:JSON.stringify({action:action,sesion:SESION,payload:payload})});
     const j=await res.json();
-    if(!j.ok) throw new Error(j.error||'error desconocido');
+    if(!j.ok){ if(j.error==='SESION_INVALIDA') sesionVencida(); throw new Error(j.error||'error desconocido'); }
     return j;
   } finally {
     if(btn){btn.disabled=false;btn.innerHTML=btn.dataset.old;}
@@ -494,8 +495,15 @@ function closeModal(){document.getElementById('modal-ov').classList.remove('open
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 
 /* ============ AUTH + SESION ============ */
-function saveSession(){try{localStorage.setItem('sgc_merch_tok',accessToken);localStorage.setItem('sgc_merch_email',userEmail);localStorage.setItem('sgc_merch_exp',String(Date.now()+55*60*1000));}catch(e){}}
-function loadSession(){try{const tok=localStorage.getItem('sgc_merch_tok');const exp=parseInt(localStorage.getItem('sgc_merch_exp')||'0');const em=(localStorage.getItem('sgc_merch_email')||'').toLowerCase().trim();if(tok&&exp>Date.now()&&em){accessToken=tok;userEmail=em;return true;}}catch(e){}return false;}
+/* 19/11/2026: la sesion es la firmada por el .gs y dura 30 dias (antes 55 min, atada al token de Google). */
+function saveSession(){try{localStorage.setItem('sgc_merch_sesion',SESION);localStorage.setItem('sgc_merch_email',userEmail);localStorage.setItem('sgc_merch_exp',String(Date.now()+30*24*60*60*1000));if(accessToken)localStorage.setItem('sgc_merch_tok',accessToken);}catch(e){}}
+function loadSession(){try{const ses=localStorage.getItem('sgc_merch_sesion')||'';const exp=parseInt(localStorage.getItem('sgc_merch_exp')||'0');const em=(localStorage.getItem('sgc_merch_email')||'').toLowerCase().trim();if(ses&&exp>Date.now()&&em){SESION=ses;userEmail=em;accessToken=localStorage.getItem('sgc_merch_tok')||null;return true;}}catch(e){}return false;}
+function sesionVencida(){
+  SESION='';
+  try{localStorage.removeItem('sgc_merch_sesion');localStorage.removeItem('sgc_merch_exp');}catch(e){}
+  /* recargar: el arranque sin sesion carga la libreria de Google y muestra el login */
+  location.reload();
+}
 
 function initAuth(){
   tokenClient=google.accounts.oauth2.initTokenClient({
@@ -503,10 +511,15 @@ function initAuth(){
     callback:async r=>{
       if(r.error)return;
       accessToken=r.access_token;
+      /* el .gs valida el token con Google y devuelve la sesion firmada y el mail real */
       try{
-        const res=await fetch('https://www.googleapis.com/oauth2/v3/userinfo',{headers:{Authorization:'Bearer '+accessToken}});
-        const info=await res.json();userEmail=(info.email||'').toLowerCase().trim();
-      }catch(ex){}
+        const j=await apiPost('login',{access_token:accessToken});
+        SESION=j.sesion;userEmail=(j.email||'').toLowerCase().trim();
+      }catch(ex){
+        const m=String(ex&&ex.message?ex.message:ex);
+        if(m.indexOf('email no autorizado')===0){userEmail=m.replace('email no autorizado:','').trim();showAccessDenied();return;}
+        toast('No pude iniciar sesión: '+m,'err');return;
+      }
       saveSession();showApp();tryRenderCache();fetchData();
     }
   });
@@ -515,20 +528,24 @@ function initAuth(){
 }
 document.getElementById('btn-login').addEventListener('click',()=>tokenClient.requestAccessToken({prompt:'select_account'}));
 document.getElementById('btn-out').addEventListener('click',()=>{
+  /* con sesion guardada la libreria de Google puede no estar cargada: salir igual */
+  if(!(window.google&&google.accounts&&google.accounts.oauth2&&accessToken)){
+    try{localStorage.removeItem('sgc_merch_tok');localStorage.removeItem('sgc_merch_sesion');localStorage.removeItem('sgc_merch_exp');}catch(e){}
+    location.reload();return;
+  }
   google.accounts.oauth2.revoke(accessToken,()=>{
     accessToken=null;userEmail='';
-    try{localStorage.removeItem('sgc_merch_tok');localStorage.removeItem('sgc_merch_exp');}catch(e){}
+    SESION='';
+    try{localStorage.removeItem('sgc_merch_tok');localStorage.removeItem('sgc_merch_sesion');localStorage.removeItem('sgc_merch_exp');}catch(e){}
     document.getElementById('app').style.display='none';
     document.getElementById('login-screen').style.display='flex';
   });
 });
 
-/* ============ FETCH (JSONP) ============ */
+/* ============ FETCH (POST con sesion; hasta el 19/11/2026 era JSONP sin login) ============ */
 let _fetchRetry=0;
 function fetchData(nocache){
-  const old=document.getElementById('_jp');if(old)old.remove();
   const cb='merchCb_'+Date.now();
-  const url=API_URL+'?callback='+cb+'&t='+Date.now()+(nocache?'&nocache=1':'');
   const onSuccess=data=>{
     _fetchRetry=0;D=data;
     if(D.error){toast(D.error,'err');hideLoad();return;}
@@ -543,10 +560,13 @@ function fetchData(nocache){
     delete window[cb];const s=document.getElementById('_jp');if(s)s.remove();
   };
   const onError=()=>{delete window[cb];if(_fetchRetry<2){_fetchRetry++;setTimeout(()=>fetchData(nocache),3000);}else{_fetchRetry=0;hideLoad();toast('No pude cargar los datos. Probá de nuevo.','err');}};
-  window[cb]=onSuccess;
-  const s=document.createElement('script');s.id='_jp';s.src=url;s.onerror=onError;
-  document.head.appendChild(s);
-  setTimeout(()=>{if(window[cb])onError();},20000);
+  const ctrl=(typeof AbortController!=='undefined')?new AbortController():null;
+  const timer=setTimeout(()=>{if(ctrl)ctrl.abort();},20000);
+  fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},
+    body:JSON.stringify({action:'getData',sesion:SESION,nocache:!!nocache}),signal:ctrl?ctrl.signal:undefined})
+    .then(r=>r.json())
+    .then(data=>{clearTimeout(timer);if(data&&data.error==='SESION_INVALIDA'){sesionVencida();return;}onSuccess(data);})
+    .catch(()=>{clearTimeout(timer);onError();});
 }
 function tryRenderCache(){
   try{

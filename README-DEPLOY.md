@@ -59,6 +59,21 @@ En la planilla **Merch Hub DB**, hoja **Acceso**: un email por fila, columna A. 
 
 ---
 
+## Seguridad: login validado y sesión firmada (19/11/2026)
+
+**Por qué.** El repo es público. Hasta el 19/11, el GET del `/exec` devolvía a cualquiera con la URL los mails del equipo, los costos, el ROI, los pedidos con el nombre de quien los pidió y el link a la planilla. Además, el `SECRET` que protegía las escrituras estaba en este mismo `index.html`, así que cualquiera podía cambiar el stock.
+
+**Cómo funciona ahora:**
+- **Login:** el cliente entra con Google y manda el `access_token` a `doPost {action:'login'}`. `_login_` lo valida con `oauth2.googleapis.com/tokeninfo`: `aud`/`azp` = `CLIENT_ID`, mail verificado y presente en la hoja **Acceso**.
+- **Sesión:** devuelve una sesión `base64(mail|vence).HMAC-SHA256` de 30 días. La clave está en *Script Properties* → `SESION_CLAVE`, se crea sola y **no está en el repo**. Borrarla cierra la sesión de todos.
+- **Pedidos:** cada uno lleva `sesion`, y el mail sale de ahí, no del cliente. La lectura es `POST {action:'getData'}`, con la misma caché por bloques. `doGet` responde error.
+- **Para dar de alta a alguien:** sigue siendo agregar su mail en la hoja **Acceso**. Para dar de baja: borrarlo; su sesión deja de valer en el siguiente pedido.
+
+**Deploy del `.gs`:**
+1. Pegar el código en el editor: https://script.google.com/d/1gtzacMYBi4nNhq-seOj5_YeH7H8OMewQgGmAEPt0IwH3mcgL5d227wiB/edit
+2. Correr `AUTORIZAR` **una vez** (pide el permiso de llamadas externas).
+3. Implementar → Administrar implementaciones → lápiz → **Nueva versión**. Nunca "Nueva implementación".
+
 ## Operación diaria
 
 | Tarea | Dónde |

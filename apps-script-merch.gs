@@ -16,7 +16,9 @@
  */
 
 var OLD_SS_ID = '1z_mn9bVQGTEf_dIkVHUtLzZ-rw72JNYyr_F77mtSJPE'; // Inventario 2025 - 2026
-var SECRET    = 'SGC-merch-2026-x7k';  // debe coincidir con el SECRET del index.html
+// Sin SECRET desde el 19/11/2026 (estaba en el index.html del repo publico).
+var CLIENT_ID = '451910290982-vudb6uk5047r19ruujlae16ouhdh0km8.apps.googleusercontent.com';
+var SESION_DIAS = 30;
 var CACHE_TTL = 600;                    // 10 min
 
 // Ubicaciones reales: la mercaderia entra por MKT-Q o MKT-N y desde ahi se distribuye a los shops.
@@ -323,9 +325,18 @@ function SETUP_MIGRATE() {
  *  2. API DE LECTURA — doGet (JSONP)
  * ============================================================ */
 
+/* Desde el 19/11/2026 el GET ya no devuelve datos: el repo es publico y
+   cualquiera con la URL leia costos, pedidos y mails del equipo. La lectura es
+   POST { action: 'getData', sesion } (ver SESION mas abajo). */
 function doGet(e) {
   var cb = (e && e.parameter && e.parameter.callback) || 'callback';
-  var nocache = e && e.parameter && e.parameter.nocache;
+  if (!/^[A-Za-z0-9_]+$/.test(cb)) cb = 'callback';
+  return ContentService.createTextOutput(cb + '(' + JSON.stringify({ error: 'Usar POST con sesion' }) + ')')
+    .setMimeType(ContentService.MimeType.JAVASCRIPT);
+}
+
+/* El payload completo como texto JSON, con la cache por bloques de siempre. */
+function datosJson_(nocache) {
   var cache = CacheService.getScriptCache();
 
   var json = null;
@@ -351,8 +362,66 @@ function doGet(e) {
     try { cache.putAll(toCache, CACHE_TTL); } catch (err) {}
   }
 
-  return ContentService.createTextOutput(cb + '(' + json + ')')
-    .setMimeType(ContentService.MimeType.JAVASCRIPT);
+  return json;
+}
+
+/* ====== SESION (19/11/2026, mismo esquema que Cerdapp v23 y Gym Bro v22) ======
+   Login de Google -> este script valida el token con Google -> emite una sesion
+   firmada (HMAC) que el cliente manda en cada pedido. La clave de firma vive en
+   Script Properties (SESION_CLAVE), se crea sola y NO esta en el repo. */
+// Correr UNA vez desde el editor despues de pegar esta version: pide el permiso
+// nuevo (llamadas externas, para validar el login con Google) y crea la clave.
+function AUTORIZAR() {
+  UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo', { muteHttpExceptions: true });
+  _clave_();
+  Logger.log('Listo: permiso dado y clave de sesion creada.');
+}
+function _permitidos_() {
+  var dbId = getDbId_();
+  if (!dbId) return [];
+  var accSh = SpreadsheetApp.openById(dbId).getSheetByName('Acceso');
+  if (!accSh || accSh.getLastRow() < 1) return [];
+  return accSh.getRange('A1:A' + accSh.getLastRow()).getValues()
+    .map(function (r) { return String(r[0] || '').toLowerCase().trim(); }).filter(String);
+}
+function _clave_() {
+  var props = PropertiesService.getScriptProperties();
+  var k = props.getProperty('SESION_CLAVE');
+  if (!k) { k = Utilities.getUuid() + Utilities.getUuid(); props.setProperty('SESION_CLAVE', k); }
+  return k;
+}
+function _firma_(txt) {
+  return Utilities.base64EncodeWebSafe(Utilities.computeHmacSha256Signature(txt, _clave_()));
+}
+function _emitirSesion_(email) {
+  var datos = email + '|' + (Date.now() + SESION_DIAS * 864e5);
+  return Utilities.base64EncodeWebSafe(datos) + '.' + _firma_(datos);
+}
+// Devuelve el mail de la sesion o tira SESION_INVALIDA (el cliente vuelve al login).
+function _verificarSesion_(tok) {
+  var partes = String(tok || '').split('.');
+  if (partes.length !== 2) throw new Error('SESION_INVALIDA');
+  var datos;
+  try { datos = Utilities.newBlob(Utilities.base64DecodeWebSafe(partes[0])).getDataAsString(); }
+  catch (err) { throw new Error('SESION_INVALIDA'); }
+  if (_firma_(datos) !== partes[1]) throw new Error('SESION_INVALIDA');
+  var i = datos.lastIndexOf('|');
+  var email = datos.slice(0, i), exp = Number(datos.slice(i + 1));
+  if (!exp || exp < Date.now()) throw new Error('SESION_INVALIDA');
+  if (_permitidos_().indexOf(email) === -1) throw new Error('SESION_INVALIDA');
+  return email;
+}
+// Valida el access_token de Google con Google (no confia en lo que diga el cliente).
+function _login_(accessToken) {
+  var r = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?access_token=' +
+    encodeURIComponent(String(accessToken || '')), { muteHttpExceptions: true });
+  if (r.getResponseCode() !== 200) throw new Error('Login de Google invalido');
+  var info = JSON.parse(r.getContentText());
+  if (info.aud !== CLIENT_ID && info.azp !== CLIENT_ID) throw new Error('Login de otra aplicacion');
+  if (String(info.email_verified) !== 'true') throw new Error('Mail de Google sin verificar');
+  var email = String(info.email || '').toLowerCase().trim();
+  if (_permitidos_().indexOf(email) === -1) throw new Error('email no autorizado: ' + email);
+  return { ok: true, sesion: _emitirSesion_(email), email: email };
 }
 
 function readTab_(ss, name) {
@@ -537,21 +606,22 @@ function doPost(e) {
   var out = { ok: false };
   try {
     var body = JSON.parse(e.postData.contents);
-    if (body.secret !== SECRET) { out.error = 'unauthorized'; return jsonOut_(out); }
+    if (body.action === 'login') {
+      try { return jsonOut_(_login_(body.payload && body.payload.access_token)); }
+      catch (errL) { out.error = String(errL && errL.message ? errL.message : errL); return jsonOut_(out); }
+    }
+    // El mail sale de la sesion firmada, nunca de lo que mande el cliente.
+    var email;
+    try { email = _verificarSesion_(body.sesion); }
+    catch (errS) { out.error = 'SESION_INVALIDA'; return jsonOut_(out); }
+    if (body.action === 'getData') {
+      return ContentService.createTextOutput(datosJson_(body.nocache))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
 
     var dbId = getDbId_();
     if (!dbId) { out.error = 'sin base migrada'; return jsonOut_(out); }
     var ss = SpreadsheetApp.openById(dbId);
-
-    // validar email contra Acceso
-    var email = String(body.email || '').toLowerCase().trim();
-    var allowed = [];
-    var accSh = ss.getSheetByName('Acceso');
-    if (accSh && accSh.getLastRow() > 0) {
-      allowed = accSh.getRange('A1:A' + accSh.getLastRow()).getValues()
-        .map(function (r) { return String(r[0] || '').toLowerCase().trim(); }).filter(String);
-    }
-    if (allowed.length && allowed.indexOf(email) === -1) { out.error = 'email no autorizado'; return jsonOut_(out); }
 
     var lock = LockService.getScriptLock();
     lock.waitLock(20000);
