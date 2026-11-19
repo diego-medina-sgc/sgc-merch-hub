@@ -74,6 +74,13 @@ En la planilla **Merch Hub DB**, hoja **Acceso**: un email por fila, columna A. 
 2. Correr `AUTORIZAR` **una vez** (pide el permiso de llamadas externas).
 3. Implementar → Administrar implementaciones → lápiz → **Nueva versión**. Nunca "Nueva implementación".
 
+## Novedades (19/11/2026)
+
+- `APP_VER` y `NOVEDADES` están en `index.html`, arriba de la sección MODAL.
+- Al entrar, `chequearNovedades()` muestra **una vez por navegador** lo nuevo desde lo último que se vio (`localStorage sgc_merch_nov`).
+- El pie tiene el link **Novedades vN** para volver a verlas.
+- **Regla:** en cada cambio visible para el equipo, subir `APP_VER`, sumar la entrada **arriba** de `NOVEDADES` en lenguaje de uso, y actualizar el número del link del pie.
+
 ## Operación diaria
 
 | Tarea | Dónde |

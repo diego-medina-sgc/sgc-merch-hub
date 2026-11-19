@@ -415,7 +415,7 @@ footer{text-align:center;padding:14px 32px;font-size:.61rem;color:var(--gray);fo
     <div class="panel" id="panel-analisis"></div>
   </main>
 
-  <footer>St George's College &middot; Merch Hub &middot; Marketing &amp; Admissions &middot; <span id="f-time"></span></footer>
+  <footer>St George's College &middot; Merch Hub &middot; Marketing &amp; Admissions &middot; <span id="f-time"></span> &middot; <a href="#" onclick="verNovedades(0);return false" style="color:inherit">Novedades v3</a></footer>
 </div>
 
 <div id="modal-ov"><div class="modal" id="modal-box"></div></div>
@@ -482,6 +482,38 @@ async function apiPost(action,payload,btn){
   } finally {
     if(btn){btn.disabled=false;btn.innerHTML=btn.dataset.old;}
   }
+}
+
+/* ============ NOVEDADES (19/11/2026) ============
+   Se muestran una vez por navegador al entrar; tambien desde el pie ("Novedades").
+   Regla: en cada cambio visible para el equipo, subir APP_VER y sumar la entrada
+   ARRIBA de NOVEDADES, en lenguaje de uso (que cambia para ellos, no como esta hecho). */
+const APP_VER='v3';
+const NOVEDADES=[
+  [3,'Novedades al entrar',[
+    ['&#128227;','Cuando cambie algo en el Merch Hub, lo vas a ver ac&aacute; al entrar. Tambi&eacute;n est&aacute; en el pie de p&aacute;gina, en <b>Novedades</b>.']]],
+  [2,'Entr&aacute;s con Google y queda abierto 30 d&iacute;as',[
+    ['&#128274;','Ahora el Merch Hub solo muestra datos a quien entr&oacute; con su cuenta del colegio y est&aacute; en la lista de acceso.'],
+    ['&#9201;','Ya no hay que volver a entrar cada hora: la sesi&oacute;n dura 30 d&iacute;as.']]]
+];
+function versionNum(v){return parseInt(String(v).replace(/\D/g,''),10)||0;}
+function chequearNovedades(){
+  let vista=1;try{vista=parseInt(localStorage.getItem('sgc_merch_nov')||'1',10)||1;}catch(e){}
+  const actual=versionNum(APP_VER);
+  if(vista>=actual)return;
+  if(document.getElementById('modal-ov').classList.contains('open'))return;
+  try{localStorage.setItem('sgc_merch_nov',String(actual));}catch(e){}  /* se marca antes de mostrar */
+  verNovedades(vista);
+}
+function verNovedades(desde){
+  let lst=NOVEDADES.filter(n=>n[0]>(desde||0)).slice(0,4);
+  if(!lst.length)lst=NOVEDADES.slice(0,2);
+  let h='';
+  lst.forEach(n=>{
+    h+='<div style="font-weight:700;margin:14px 0 6px">'+n[1]+' <span style="opacity:.6;font-weight:600">&middot; '+'v'+n[0]+'</span></div>';
+    n[2].forEach(x=>{h+='<div style="display:flex;gap:10px;align-items:flex-start;margin:6px 0"><span style="font-size:1.2em;line-height:1.2">'+x[0]+'</span><span>'+x[1]+'</span></div>';});
+  });
+  openModal('Novedades',h,'<button class="btn-google" onclick="closeModal()">Entendido</button>');
 }
 
 /* ============ MODAL ============ */
@@ -557,6 +589,7 @@ function fetchData(nocache){
     document.getElementById('h-update').textContent='Datos: '+(D.lastUpdate||'');
     document.getElementById('f-time').textContent=D.lastUpdate||'';
     render();
+    setTimeout(chequearNovedades,500);
     delete window[cb];const s=document.getElementById('_jp');if(s)s.remove();
   };
   const onError=()=>{delete window[cb];if(_fetchRetry<2){_fetchRetry++;setTimeout(()=>fetchData(nocache),3000);}else{_fetchRetry=0;hideLoad();toast('No pude cargar los datos. Probá de nuevo.','err');}};
